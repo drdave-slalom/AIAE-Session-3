@@ -1,0 +1,148 @@
+# MVP
+
+- Epic: Task Management
+  - Story: Preserve Task Titles and Completion Status
+    - Acceptance Criteria:
+      - A task cannot be created without a title.
+      - A task retains its completed or incomplete status.
+    - Technical Requirements:
+      - Retain the required title validation in `TaskForm` and trim the title before saving.
+      - Store `completed` as a boolean in frontend task state and local storage.
+      - Replace the `TaskList` completion `PATCH` request with an immutable state update supplied by `App`.
+      - Extend the frontend tests to cover blank-title rejection and completion-state persistence.
+  - Story: Add Optional Task Due Dates
+    - Acceptance Criteria:
+      - A task can be created without a due date.
+      - A task can be assigned a due date in `YYYY-MM-DD` format.
+      - An assigned valid due date is retained with the task.
+    - Technical Requirements:
+      - Continue using the existing Material UI date `TextField` in `TaskForm`.
+      - Keep the existing `due_date` property name used by `TaskForm`, `TaskList`, and the current API model.
+      - Normalize an empty due-date control to `null` and a valid value to `YYYY-MM-DD` before saving.
+      - Add frontend tests for tasks with and without due dates.
+  - Story: Ignore Invalid Due Dates
+    - Acceptance Criteria:
+      - A due date that is not a valid `YYYY-MM-DD` value does not prevent the task from being retained.
+      - An invalid due date is treated as though the task has no due date.
+    - Technical Requirements:
+      - Replace `TaskForm`'s permissive date normalization with a reusable strict date helper.
+      - Validate both the `YYYY-MM-DD` shape and the actual calendar date to reject values such as `2025-02-30`.
+      - Normalize invalid values from form input or previously stored tasks to `null` during task loading and saving.
+      - Unit test malformed dates, impossible calendar dates, and valid leap-day dates.
+  - Story: Store Task Data Locally
+    - Acceptance Criteria:
+      - Task data is saved in local storage.
+      - Locally stored task data remains available after the app is reopened.
+      - Saving task data does not require a backend or external storage service.
+    - Technical Requirements:
+      - Move task ownership into `App` using React state initialized from a versioned browser `localStorage` key.
+      - Serialize the complete task collection after create, edit, completion, and delete state changes.
+      - Normalize parsed local data and recover with an empty task collection when stored JSON is absent or invalid.
+      - Generate and persist a stable unique identifier for each locally created task.
+      - Refactor `TaskForm` and `TaskList` callbacks to update frontend state instead of calling `/api/tasks`.
+      - Leave the existing Express routes and in-memory SQLite schema in `packages/backend/src/app.js` unchanged.
+      - Replace API-mocked frontend tests with isolated `localStorage` setup and cleanup.
+- Epic: Task Priorities
+  - Story: Assign Priorities to Tasks
+    - Acceptance Criteria:
+      - A task can be assigned `P1`, `P2`, or `P3` priority.
+      - A priority value other than `P1`, `P2`, or `P3` is not accepted.
+      - The assigned priority is retained with the task.
+    - Technical Requirements:
+      - Add a controlled Material UI priority selector to `TaskForm` with only `P1`, `P2`, and `P3` options.
+      - Include `priority` in the task object passed from `TaskForm` to `App` for create and edit operations.
+      - Centralize the allowed priority values in a shared frontend constant or validation helper.
+      - Normalize unsupported priority values before placing a task in state or local storage.
+      - Test selecting, editing, and persisting each supported priority.
+  - Story: Default Tasks to P3 Priority
+    - Acceptance Criteria:
+      - A task created without an assigned priority receives `P3` priority.
+    - Technical Requirements:
+      - Initialize the `TaskForm` priority state to `P3` for new tasks and reset it to `P3` after submission.
+      - Apply a `P3` fallback while loading legacy locally stored tasks that have no priority.
+      - Add a frontend test that creates a task without changing the priority selector and verifies `P3` is stored.
+  - Story: Display Color-Coded Priority Badges
+    - Acceptance Criteria:
+      - Each task displays a badge for its priority.
+      - A `P1` priority badge is red.
+      - A `P2` priority badge is orange.
+      - A `P3` priority badge is gray.
+    - Technical Requirements:
+      - Render a Material UI `Chip` for `task.priority` in each existing `TaskList` item.
+      - Define a priority-to-color style map for red `P1`, orange `P2`, and gray `P3` badges.
+      - Keep the badge in the existing task metadata/action layout without replacing the due-date chip.
+      - Add component assertions for each badge label and color mapping.
+- Epic: Task Filtering
+  - Story: View All Tasks
+    - Acceptance Criteria:
+      - **All**, **Today**, and **Overdue** filter controls are available for quick switching.
+      - Selecting **All** displays both completed and incomplete tasks.
+    - Technical Requirements:
+      - Add `All`, `Today`, and `Overdue` Material UI tabs or an equivalent segmented control above the list.
+      - Track the active filter in frontend component state and default it to `All`.
+      - Derive displayed tasks from the task collection without mutating the stored collection.
+      - Return every task from the `All` filter regardless of its `completed` value.
+      - Test switching back to `All` after applying each date filter.
+  - Story: View Incomplete Tasks Due Today
+    - Acceptance Criteria:
+      - Selecting **Today** displays incomplete tasks due on the current date.
+      - The **Today** view excludes completed tasks.
+      - The **Today** view excludes tasks due before or after the current date and tasks without a due date.
+    - Technical Requirements:
+      - Implement a shared local-calendar helper that produces the current date as `YYYY-MM-DD`.
+      - Filter the `Today` view with `completed === false` and `due_date` equal to the local current date.
+      - Use fake timers or a fixed system date in tests to cover incomplete, completed, undated, past, and future tasks.
+  - Story: View Incomplete Overdue Tasks
+    - Acceptance Criteria:
+      - Selecting **Overdue** displays incomplete tasks with a due date before the current date.
+      - The **Overdue** view excludes completed tasks.
+      - The **Overdue** view excludes tasks due on or after the current date and tasks without a due date.
+    - Technical Requirements:
+      - Implement one shared `isOverdue` helper using valid local `YYYY-MM-DD` values.
+      - Filter the `Overdue` view with `completed === false` and `isOverdue(task.due_date)`.
+      - Reuse the same helper for Post-MVP overdue styling and sorting to keep boundary behavior consistent.
+      - Use a fixed system date in tests to cover completed, undated, past, current-date, and future tasks.
+
+# Post-MVP
+
+- Epic: Overdue Task Visibility
+  - Story: Highlight Overdue Tasks
+    - Acceptance Criteria:
+      - A task with a due date before the current date is visually highlighted as overdue.
+      - The overdue highlight is red.
+      - A task due on or after the current date is not highlighted as overdue.
+    - Technical Requirements:
+      - Use the shared `isOverdue` helper when computing each `TaskList` item's Material UI `sx` styles.
+      - Apply a red background or border treatment to overdue list items while preserving a visible completed state.
+      - Keep current-date, future, undated, and invalid-date tasks on the standard list-item styling path.
+      - Add component tests for overdue and non-overdue item styles using a fixed system date.
+- Epic: Automatic Task Sorting
+  - Story: Sort Overdue Tasks First
+    - Acceptance Criteria:
+      - Overdue tasks appear before tasks that are not overdue.
+    - Technical Requirements:
+      - Add a single task comparator to the frontend's derived display pipeline after filtering.
+      - Make overdue status, computed with the shared `isOverdue` helper, the comparator's first key.
+      - Sort a copied task array so React state and the local-storage order are not mutated.
+      - Test mixed overdue and non-overdue tasks whose other sort keys conflict.
+  - Story: Sort Tasks by Priority
+    - Acceptance Criteria:
+      - Within the same overdue status, tasks are ordered by priority from `P1` to `P3`.
+    - Technical Requirements:
+      - Add a priority rank map of `P1: 1`, `P2: 2`, and `P3: 3` as the comparator's second key.
+      - Apply the normalized `P3` fallback before comparing legacy or invalid task data.
+      - Test priority ordering separately within overdue and non-overdue groups.
+  - Story: Sort Tasks by Due Date
+    - Acceptance Criteria:
+      - Within the same overdue status and priority, dated tasks are ordered by due date in ascending order.
+    - Technical Requirements:
+      - Compare valid `YYYY-MM-DD` strings as the comparator's third key after overdue status and priority.
+      - Preserve the original relative order when overdue status, priority, and due date are equal.
+      - Test ascending dates with identical overdue status and priority.
+  - Story: Place Tasks Without Due Dates Last
+    - Acceptance Criteria:
+      - Within the applicable overdue status and priority grouping, tasks without a due date appear after dated tasks.
+    - Technical Requirements:
+      - Treat `null`, empty, and normalized invalid due dates as undated in the comparator.
+      - Place undated tasks after dated tasks within the same overdue-status and priority group.
+      - Add comparator tests covering dated and undated tasks at each priority level.
