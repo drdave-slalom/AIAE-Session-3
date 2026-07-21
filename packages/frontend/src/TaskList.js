@@ -1,15 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import {
-  List, ListItem, ListItemText, IconButton, Checkbox, Typography, Box, CircularProgress, Paper, Chip
+  List, ListItem, ListItemText, IconButton, Checkbox, Typography, Box, CircularProgress, Paper, Chip, Button
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import EventIcon from '@mui/icons-material/Event';
 
+// Priority levels supported for tasks, in display order
+const PRIORITY_LEVELS = ['P1', 'P2', 'P3'];
+const DEFAULT_PRIORITY = 'P3';
+const PRIORITY_STORAGE_KEY = 'todoTaskPriorities';
+const PRIORITY_SELECTED_COLOR = '#07F2E6';
+const PRIORITY_UNSELECTED_COLOR = '#7A7A7A';
+
+function isValidPriority(value) {
+  return PRIORITY_LEVELS.includes(value);
+}
+
+// Priority is stored client-side only, keyed by task id, since the
+// backend task model does not persist a priority column.
+function loadStoredPriorities() {
+  try {
+    const raw = window.localStorage.getItem(PRIORITY_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (err) {
+    return {};
+  }
+}
+
 function TaskList({ onEdit }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [priorities, setPriorities] = useState(() => loadStoredPriorities());
 
   useEffect(() => {
     fetchTasks();
@@ -35,11 +59,40 @@ function TaskList({ onEdit }) {
       const data = await response.json();
       setTasks(data);
       setError(null);
+
+      // New tasks without a stored priority default to P3
+      setPriorities(prev => {
+        let changed = false;
+        const next = { ...prev };
+        data.forEach(task => {
+          if (!isValidPriority(next[task.id])) {
+            next[task.id] = DEFAULT_PRIORITY;
+            changed = true;
+          }
+        });
+        if (changed) {
+          window.localStorage.setItem(PRIORITY_STORAGE_KEY, JSON.stringify(next));
+        }
+        return changed ? next : prev;
+      });
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const getPriorityForTask = (taskId) => (
+    isValidPriority(priorities[taskId]) ? priorities[taskId] : DEFAULT_PRIORITY
+  );
+
+  const handlePriorityChange = (taskId, priority) => {
+    if (!isValidPriority(priority)) return;
+    setPriorities(prev => {
+      const next = { ...prev, [taskId]: priority };
+      window.localStorage.setItem(PRIORITY_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
   };
 
   const handleToggleComplete = async (task) => {
@@ -177,18 +230,55 @@ function TaskList({ onEdit }) {
                 </Typography>
               }
               secondary={
-                task.description && (
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      color: task.completed ? '#bdbdbd' : '#616161',
-                      fontSize: '0.85rem',
-                      mt: 0.25
-                    }}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.25 }}>
+                  {task.description && (
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        color: task.completed ? '#bdbdbd' : '#616161',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      {task.description}
+                    </Typography>
+                  )}
+                  <Box
+                    role="group"
+                    aria-label={`Priority for ${task.title}`}
+                    sx={{ display: 'flex', gap: 0.5 }}
                   >
-                    {task.description}
-                  </Typography>
-                )
+                    {PRIORITY_LEVELS.map(level => {
+                      const isSelected = getPriorityForTask(task.id) === level;
+                      return (
+                        <Button
+                          key={level}
+                          size="small"
+                          variant="contained"
+                          disableElevation
+                          onClick={() => handlePriorityChange(task.id, level)}
+                          aria-pressed={isSelected}
+                          data-testid={`priority-${level}-${task.id}`}
+                          sx={{
+                            minWidth: 0,
+                            px: 1,
+                            py: 0.25,
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            lineHeight: 1.4,
+                            color: '#ffffff',
+                            backgroundColor: isSelected ? PRIORITY_SELECTED_COLOR : PRIORITY_UNSELECTED_COLOR,
+                            '&:hover': {
+                              backgroundColor: isSelected ? PRIORITY_SELECTED_COLOR : PRIORITY_UNSELECTED_COLOR,
+                              opacity: 0.85
+                            }
+                          }}
+                        >
+                          {level}
+                        </Button>
+                      );
+                    })}
+                  </Box>
+                </Box>
               }
             />
             <Box 
