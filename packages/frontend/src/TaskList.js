@@ -10,8 +10,9 @@ import EventIcon from '@mui/icons-material/Event';
 const PRIORITY_LEVELS = ['P1', 'P2', 'P3'];
 const DEFAULT_PRIORITY = 'P3';
 const PRIORITY_STORAGE_KEY = 'todoTaskPriorities';
-const PRIORITY_SELECTED_COLOR = '#07F2E6';
-const PRIORITY_UNSELECTED_COLOR = '#7A7A7A';
+// Colors are defined as CSS custom properties in App.css
+const PRIORITY_SELECTED_COLOR = 'var(--priority-selected-color)';
+const PRIORITY_UNSELECTED_COLOR = 'var(--priority-unselected-color)';
 
 function isValidPriority(value) {
   return PRIORITY_LEVELS.includes(value);
